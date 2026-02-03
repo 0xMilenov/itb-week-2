@@ -15,13 +15,69 @@ import {Utils} from "@recon/Utils.sol";
 // Your deps
 import "src/Morpho.sol";
 
+import {MarketParams, Market} from "src/interfaces/IMorpho.sol";
+import {OracleMock} from "src/mocks/OracleMock.sol";
+
+// we need a new mock irm contract, because the morpho's mock irm doesnt have a setter
+contract MockIRM {
+    uint256 internal _borrowRate;
+
+    function setBorrowRate(uint256 newBorrowRate) external {
+        _borrowRate = newBorrowRate;
+    }
+
+    function borrowRate(MarketParams memory marketParams, Market memory market) public view returns (uint256) {
+        return _borrowRate;
+    }
+
+    function borrowRateView(MarketParams memory marketParams, Market memory market) public view returns (uint256) {
+        return borrowRate(marketParams, market);
+    }
+}
+
+
 abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
     Morpho morpho;
+    MockIRM irm;
+    // we can use morpho's mock oracle
+    OracleMock oracle;
     
     /// === Setup === ///
     /// This contains all calls to be performed in the tester constructor, both for Echidna and Foundry
     function setup() internal virtual override {
-        morpho = new Morpho(_getActor()); // TODO: Add parameters here
+        // core protocol
+        morpho = new Morpho(_getActor());
+
+        // interest rate contract
+        irm = new MockIRM();
+
+        // oracle
+        oracle = new OracleMock();
+
+        // two assets from AssetManager
+        _newAsset(18);
+        _newAsset(18);
+
+        // configure the market || loan to value is 80%
+        morpho.enableIrm(address(irm));
+        morpho.enableLltv(8e17);
+
+        address[] memory assets = _getAssets();
+        MarketParams memory marketParams = MarketParams({
+            loanToken: assets[1],
+            collateralToken: assets[0],
+            oracle: address(oracle),
+            irm: address(irm),
+            lltv: 8e17
+        });
+
+        morpho.createMarket(marketParams);
+
+        // approve and mint using AssetManager
+        address[] memory approvalArray = new address[](1);
+        approvalArray[0] = address(morpho);
+
+        _finalizeAssetDeployment(_getActors(), approvalArray, type(uint88).max);
     }
 
     /// === MODIFIERS === ///
