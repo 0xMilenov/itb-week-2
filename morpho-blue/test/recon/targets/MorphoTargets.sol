@@ -17,19 +17,25 @@ abstract contract MorphoTargets is
     Properties
 {
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
+    function morpho_supply_clamped(uint256 assets) public {
+        morpho_supply(assets, 0, _getActor(), hex"");
+    }
 
+    function morpho_supplyCollateral_clamped(uint256 assets) public {
+        morpho_supplyCollateral(assets, _getActor(), hex"");
+    }
 
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
 
-    function morpho_accrueInterest(MarketParams memory marketParams) public asActor {
+    function morpho_accrueInterest() public asActor {
         morpho.accrueInterest(marketParams);
     }
 
-    function morpho_borrow(MarketParams memory marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) public asActor {
+    function morpho_borrow(uint256 assets, uint256 shares, address onBehalf, address receiver) public asActor {
         morpho.borrow(marketParams, assets, shares, onBehalf, receiver);
     }
 
-    function morpho_createMarket(MarketParams memory marketParams) public asActor {
+    function morpho_createMarket() public asActor {
         morpho.createMarket(marketParams);
     }
 
@@ -45,11 +51,11 @@ abstract contract MorphoTargets is
         morpho.flashLoan(token, assets, data);
     }
 
-    function morpho_liquidate(MarketParams memory marketParams, address borrower, uint256 seizedAssets, uint256 repaidShares, bytes memory data) public asActor {
+    function morpho_liquidate(address borrower, uint256 seizedAssets, uint256 repaidShares, bytes memory data) public asActor {
         morpho.liquidate(marketParams, borrower, seizedAssets, repaidShares, data);
     }
 
-    function morpho_repay(MarketParams memory marketParams, uint256 assets, uint256 shares, address onBehalf, bytes memory data) public asActor {
+    function morpho_repay(uint256 assets, uint256 shares, address onBehalf, bytes memory data) public asActor {
         morpho.repay(marketParams, assets, shares, onBehalf, data);
     }
 
@@ -61,7 +67,7 @@ abstract contract MorphoTargets is
         morpho.setAuthorizationWithSig(authorization, signature);
     }
 
-    function morpho_setFee(MarketParams memory marketParams, uint256 newFee) public asActor {
+    function morpho_setFee(uint256 newFee) public asActor {
         morpho.setFee(marketParams, newFee);
     }
 
@@ -73,19 +79,19 @@ abstract contract MorphoTargets is
         morpho.setOwner(newOwner);
     }
 
-    function morpho_supply(MarketParams memory marketParams, uint256 assets, uint256 shares, address onBehalf, bytes memory data) public asActor {
+    function morpho_supply(uint256 assets, uint256 shares, address onBehalf, bytes memory data) public asActor {
         morpho.supply(marketParams, assets, shares, onBehalf, data);
     }
 
-    function morpho_supplyCollateral(MarketParams memory marketParams, uint256 assets, address onBehalf, bytes memory data) public asActor {
+    function morpho_supplyCollateral(uint256 assets, address onBehalf, bytes memory data) public asActor {
         morpho.supplyCollateral(marketParams, assets, onBehalf, data);
     }
 
-    function morpho_withdraw(MarketParams memory marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) public asActor {
+    function morpho_withdraw(uint256 assets, uint256 shares, address onBehalf, address receiver) public asActor {
         morpho.withdraw(marketParams, assets, shares, onBehalf, receiver);
     }
 
-    function morpho_withdrawCollateral(MarketParams memory marketParams, uint256 assets, address onBehalf, address receiver) public asActor {
+    function morpho_withdrawCollateral(uint256 assets, address onBehalf, address receiver) public asActor {
         morpho.withdrawCollateral(marketParams, assets, onBehalf, receiver);
     }
 }

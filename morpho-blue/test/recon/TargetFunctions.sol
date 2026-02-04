@@ -21,7 +21,9 @@ abstract contract TargetFunctions is
     MorphoTargets
 {
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
-
+    function oracle_setPrice(uint256 price) public {
+        oracle.setPrice(price);
+    }
 
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
 }

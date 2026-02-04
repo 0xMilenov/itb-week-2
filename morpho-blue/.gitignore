@@ -23,5 +23,5 @@ docs/
 
 # Coverage files
 crytic-export
-# echidna
+echidna
 medusa

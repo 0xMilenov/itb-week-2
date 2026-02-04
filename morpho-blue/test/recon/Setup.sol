@@ -41,6 +41,7 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
     MockIRM irm;
     // we can use morpho's mock oracle
     OracleMock oracle;
+    MarketParams marketParams;
     
     /// === Setup === ///
     /// This contains all calls to be performed in the tester constructor, both for Echidna and Foundry
@@ -54,7 +55,9 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
         // oracle
         oracle = new OracleMock();
 
-        // two assets from AssetManager
+        oracle.setPrice(1e36);
+
+        // two assets from AssetManager - collateral and loan tokens
         _newAsset(18);
         _newAsset(18);
 
@@ -63,7 +66,7 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
         morpho.enableLltv(8e17);
 
         address[] memory assets = _getAssets();
-        MarketParams memory marketParams = MarketParams({
+        marketParams = MarketParams({
             loanToken: assets[1],
             collateralToken: assets[0],
             oracle: address(oracle),
