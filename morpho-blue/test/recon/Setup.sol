@@ -42,6 +42,10 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
     // we can use morpho's mock oracle
     OracleMock oracle;
     MarketParams marketParams;
+
+    // Canary tracking variables
+    // bool internal hasRepaid;
+    // bool internal hasLiquidated;
     
     /// === Setup === ///
     /// This contains all calls to be performed in the tester constructor, both for Echidna and Foundry

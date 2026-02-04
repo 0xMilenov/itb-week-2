@@ -25,6 +25,46 @@ abstract contract MorphoTargets is
         morpho_supplyCollateral(assets, _getActor(), hex"");
     }
 
+    function morpho_liquidate_clamped(uint256 seizedAssets, bytes memory data, uint256 entropy) public {
+        // improve coverage using other actor to achieve liquidator =! borrower
+        address[] memory actors = _getActors();
+        address borrower = actors[entropy % actors.length];
+        morpho_liquidate(borrower, seizedAssets, 0, data);
+    }
+
+    function morpho_repay_clamped(uint256 assets) public {
+        morpho_repay(assets, 0, _getActor(), hex"");
+    }
+
+    function morpho_liquidate_assets(uint256 seizedAssets, bytes memory data) public {
+        morpho_liquidate(_getActor(), seizedAssets, 0, data);
+    }
+
+    function morpho_liquidate_shares(uint256 shares, bytes memory data) public {
+        morpho_liquidate(_getActor(), 0, shares, data);
+    }
+
+    function morpho_withdraw_clamped(uint256 assets) public {
+        // to be sure we have enough shares
+        morpho_supply_clamped(assets + 1);
+        morpho_withdraw(assets, 0, _getActor(), _getActor());
+    }
+
+    // bad dept
+    function morpho_liquidate_badDebt_clamped(uint256 collateral) public {
+        // safe and useful range
+        collateral = (collateral % 1000) + 1;
+
+        morpho_supply_clamped(1);
+        morpho_supplyCollateral_clamped(collateral);
+
+        oracle.setPrice(1e30);
+        morpho_borrow(1, 0, _getActor(), _getActor());
+
+        oracle.setPrice(0);
+        morpho_liquidate(_getActor(), collateral, 0, hex"");
+    }
+
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
 
     function morpho_accrueInterest() public asActor {
@@ -53,10 +93,12 @@ abstract contract MorphoTargets is
 
     function morpho_liquidate(address borrower, uint256 seizedAssets, uint256 repaidShares, bytes memory data) public asActor {
         morpho.liquidate(marketParams, borrower, seizedAssets, repaidShares, data);
+        // hasLiquidated = true;
     }
 
     function morpho_repay(uint256 assets, uint256 shares, address onBehalf, bytes memory data) public asActor {
         morpho.repay(marketParams, assets, shares, onBehalf, data);
+        // hasRepaid = true;
     }
 
     function morpho_setAuthorization(address authorized, bool newIsAuthorized) public asActor {
