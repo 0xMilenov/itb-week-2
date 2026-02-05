@@ -103,7 +103,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     
     // }
 
-    // still not covered completely - liduidate with bad debt
+    // liduidate with bad debt
     function test_crytic_liquidate_bad_dept() public {
         morpho_supply_clamped(1);
         morpho_supplyCollateral_clamped(100);
