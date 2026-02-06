@@ -11,6 +11,7 @@ import {vm} from "@chimera/Hevm.sol";
 import {Panic} from "@recon/Panic.sol";
 
 import "src/Morpho.sol";
+import {Id, MarketParams} from "src/interfaces/IMorpho.sol";
 
 abstract contract MorphoTargets is
     BaseTargetFunctions,
@@ -65,6 +66,47 @@ abstract contract MorphoTargets is
         morpho_liquidate(_getActor(), collateral, 0, hex"");
     }
 
+    // dynamic market creation
+    function morpho_createMarket_clamped(uint8 index, uint256 entropy) public {
+        
+        uint256 lltv = enabledLltvs[entropy % enabledLltvs.length];
+        
+        address[] memory assets = _getAssets();
+        address loanToken = assets[index % assets.length];
+        address collateralToken = _getAsset();
+
+        // avoid loanToken to be equal with colalteralToken
+        if (loanToken == collateralToken && assets.length > 1) {
+            loanToken = assets[(index + 1) % assets.length];
+        }
+
+        MarketParams memory mp = MarketParams({
+            loanToken: loanToken,
+            collateralToken: collateralToken, 
+            oracle: address(oracle),
+            irm: address(irm),
+            lltv: lltv
+        });
+
+        morpho_createMarket(mp);
+    }
+
+    // switch markets
+    function morpho_switchMarket(uint256 entropy) public {
+        if (trackedMarketIds.length == 0) return;
+
+        Id id = trackedMarketIds[entropy % trackedMarketIds.length];
+        (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) = morpho.idToMarketParams(id);
+
+        marketParams = MarketParams({
+            loanToken: loanToken,
+            collateralToken: collateralToken,
+            oracle: oracle,
+            irm: irm,
+            lltv: lltv
+        });
+    }
+
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
 
     function morpho_accrueInterest() public asActor {
@@ -75,16 +117,22 @@ abstract contract MorphoTargets is
         morpho.borrow(marketParams, assets, shares, onBehalf, receiver);
     }
 
-    function morpho_createMarket() public asActor {
-        morpho.createMarket(marketParams);
+    function morpho_createMarket(MarketParams memory mp) public asActor {
+        morpho.createMarket(mp);
+
+        marketParams = mp;
+        _trackMarket(mp);
     }
 
     function morpho_enableIrm(address irm) public asActor {
         morpho.enableIrm(irm);
     }
 
-    function morpho_enableLltv(uint256 lltv) public asActor {
+    function morpho_enableLltv(uint256 entropy) public asActor {
+        uint256 lltv = 7e17 + (entropy % 26) * 1e16; // 70%-95% range
         morpho.enableLltv(lltv);
+        // if call didn't revert track it
+        enabledLltvs.push(lltv);
     }
 
     function morpho_flashLoan(address token, uint256 assets, bytes memory data) public asActor {
