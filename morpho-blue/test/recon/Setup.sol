@@ -51,9 +51,8 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
 
     // MarketManager: bounded list to track markets for dynamic market creation
     // use morpho_switchMarket(entropy) as the canonical handler to set active market before actions
-    Id[] internal trackedMarketIds;
+    MarketParams[] internal _createdMarkets;
     uint256 internal constant MAX_TRACKED_MARKETS = 5;
-    mapping(bytes32 => bool) internal isTracked;
 
     // track enabled lltvs because totally random lltv will make createMarket often to revert
     uint256[] internal enabledLltvs;
@@ -118,12 +117,11 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
     // helper function for dynamic market creation and tracking
     function _trackMarket(MarketParams memory mp) internal {
         Id id = mp.id();
-        bytes32 key = Id.unwrap(id);
-        if (isTracked[key]) return;
-        if (trackedMarketIds.length >= MAX_TRACKED_MARKETS) return;
-
-        isTracked[key] = true;
-        trackedMarketIds.push(id);
+        for (uint256 i; i < _createdMarkets.length; i++) {
+            if (Id.unwrap(_createdMarkets[i].id()) == Id.unwrap(id)) return;
+        }
+        if (_createdMarkets.length >= MAX_TRACKED_MARKETS) return;
+        _createdMarkets.push(mp);
     }
 
 

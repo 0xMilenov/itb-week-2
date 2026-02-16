@@ -14,6 +14,7 @@ import "src/Morpho.sol";
 import {Id, MarketParams} from "src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "src/libraries/MarketParamsLib.sol";
 import "src/libraries/ConstantsLib.sol";
+import {MockERC20} from "@recon/MockERC20.sol";
 
 abstract contract MorphoTargets is
     BaseTargetFunctions,
@@ -49,11 +50,11 @@ abstract contract MorphoTargets is
         morpho_withdraw(0, sharesToBurn, _getActor(), _getActor());
     }
 
-    function morpho_supply_clamped(uint256 assets) public {
+    function morpho_supply_clamped(uint256 assets) public updateGhosts {
         morpho_supply(assets, 0, _getActor(), hex"");
     }
 
-    function morpho_supplyCollateral_clamped(uint256 assets) public {
+    function morpho_supplyCollateral_clamped(uint256 assets) public updateGhosts {
         morpho_supplyCollateral(assets, _getActor(), hex"");
     }
 
@@ -64,11 +65,11 @@ abstract contract MorphoTargets is
         morpho_liquidate(borrower, seizedAssets, 0, data);
     }
 
-    function morpho_repay_clamped(uint256 assets) public {
+    function morpho_repay_clamped(uint256 assets) public updateGhosts {
         morpho_repay(assets, 0, _getActor(), hex"");
     }
 
-    function morpho_borrow_shares_clamped(uint256 shares) public {
+    function morpho_borrow_shares_clamped(uint256 shares) public updateGhosts {
         Id id = marketParams.id();
         (, , , uint128 totalBorrowShares, , ) = morpho.market(id);
         if (totalBorrowShares == 0) return; // need existing borrows to borrow by shares
@@ -97,7 +98,7 @@ abstract contract MorphoTargets is
         morpho_liquidate(_getActor(), 0, shares, data);
     }
 
-    function morpho_withdraw_clamped(uint256 assets) public {
+    function morpho_withdraw_clamped(uint256 assets) public updateGhosts {
         // to be sure we have enough shares
         morpho_supply_clamped(assets + 1);
         morpho_withdraw(assets, 0, _getActor(), _getActor());
@@ -143,13 +144,17 @@ abstract contract MorphoTargets is
         morpho_createMarket(mp);
     }
 
-    function morpho_flashLoan_clamped(uint256 assets) public {
-        assets = (assets % 1e18) + 1;
-        morpho_supply_clamped(assets + 1);
-        flashBorrower.flashLoan(marketParams.loanToken, assets, abi.encode(marketParams.loanToken));
+    function morpho_flashLoan_clamped(uint256 assets) public updateGhosts {
+        uint256 balance = MockERC20(marketParams.loanToken).balanceOf(address(morpho));
+        if (balance == 0) return;
+        uint256 balanceBefore = balance;
+        uint256 clamped = assets % (balance + 1);
+        flashBorrower.flashLoan(marketParams.loanToken, clamped, abi.encode(marketParams.loanToken));
+        uint256 balanceAfter = MockERC20(marketParams.loanToken).balanceOf(address(morpho));
+        eq(balanceAfter, balanceBefore, "flashLoan: morpho balance changed");
     }
 
-    function morpho_withdrawCollateral_clamped(uint256 assets) public {
+    function morpho_withdrawCollateral_clamped(uint256 assets) public updateGhosts {
         assets = (assets % 1e18) + 1;
         morpho_supplyCollateral_clamped(assets + 1);
         morpho_withdrawCollateral(assets, _getActor(), _getActor());
@@ -186,18 +191,8 @@ abstract contract MorphoTargets is
     }
 
     function morpho_switchMarket(uint256 entropy) public {
-        if (trackedMarketIds.length == 0) return;
-
-        Id id = trackedMarketIds[entropy % trackedMarketIds.length];
-        (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) = morpho.idToMarketParams(id);
-
-        marketParams = MarketParams({
-            loanToken: loanToken,
-            collateralToken: collateralToken,
-            oracle: oracle,
-            irm: irm,
-            lltv: lltv
-        });
+        if (_createdMarkets.length == 0) return;
+        marketParams = _createdMarkets[entropy % _createdMarkets.length];
     }
 
     function scenario_liquidate_when_healthy() public {
