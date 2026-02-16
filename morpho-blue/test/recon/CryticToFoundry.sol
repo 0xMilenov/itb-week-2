@@ -17,6 +17,25 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         targetContract(address(this));
     }
 
+    // forge test --match-test test_property_zeroSupplyShares_implies_zeroSupplyAssets_ -vvv 
+    function test_property_zeroSupplyShares_implies_zeroSupplyAssets_() public {
+
+        // supply(1) asset --> mints 1 000 000 shares ( 1e6 )
+        morpho_supply_clamped(1);
+
+        // withdraw(0 assets, 999 999 shares) --> burns shares, transfers 0 assets
+        morpho_withdraw_burnShares();
+
+        // withdraw(0 assets, 1 shares) --> burns shares, transfers 0 assets
+        morpho_withdraw_burnShares();
+
+        // we still have 1 asset inside and 0 shares
+        property_zeroSupplyShares_implies_zeroSupplyAssets();
+
+        // tldr of the bug - next user can be tricked into supplying more than intended if they supply via shares and have high allowance
+
+    }
+
     // forge test --match-test test_crytic -vvv
     function test_crytic_borrow() public {
         morpho_supply_clamped(1e18);
@@ -102,6 +121,30 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     //     canary_hasRepaid();
     
     // }
+
+    function test_scenario_liquidate_when_healthy() public {
+        scenario_liquidate_when_healthy(); // should not revert (liquidate reverts, we catch it)
+    }
+
+    function test_crytic_flashLoan_clamped() public {
+        morpho_flashLoan_clamped(1e6);
+    }
+
+    function test_crytic_withdrawCollateral_clamped() public {
+        morpho_withdrawCollateral_clamped(1e17);
+    }
+
+    function test_crytic_setFee_clamped() public {
+        morpho_setFee_clamped(1);
+    }
+
+    function test_crytic_setFeeRecipient_clamped() public {
+        morpho_setFeeRecipient_clamped(0);
+    }
+
+    function test_crytic_setOwner_clamped() public {
+        morpho_setOwner_clamped(1);
+    }
 
     // liduidate with bad debt
     function test_crytic_liquidate_bad_dept() public {

@@ -1,0 +1,16 @@
+testMode: "optimization"
+prefix: "echidna_"
+coverage: true
+corpusDir: "echidna-opt"
+
+shrinkLimit: 100000
+
+filterBlacklist: false
+filterFunctions:
+  - "CryticOptimizer.morpho_supply_clamped(uint256)"
+  - "CryticOptimizer.morpho_withdraw_burnShares()"
+
+seqLen: 80
+
+cryticArgs: ["--foundry-compile-all"]
+

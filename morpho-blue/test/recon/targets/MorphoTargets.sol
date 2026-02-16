@@ -12,12 +12,43 @@ import {Panic} from "@recon/Panic.sol";
 
 import "src/Morpho.sol";
 import {Id, MarketParams} from "src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "src/libraries/MarketParamsLib.sol";
+import "src/libraries/ConstantsLib.sol";
 
 abstract contract MorphoTargets is
     BaseTargetFunctions,
     Properties
 {
+    using MarketParamsLib for MarketParams;
+
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
+
+    // bug - `totalSupplyShares == 0` while `totalSupplyAssets > 0`.
+    function morpho_withdraw_burnShares() public {
+        Id id = marketParams.id();
+        (uint128 totalSupplyAssets, uint128 totalSupplyShares,,,,) = morpho.market(id);
+
+        // compute the largest shares such that shares.toAssetsDown(totalAssets,totalShares) == 0.
+        // sharesMathLib: toAssetsDown(shares) = shares * (totalAssets + 1) / (totalShares + 1e6).
+        // we need - shares * (totalAssets + 1) < (totalShares + 1e6).
+        uint256 denom = uint256(totalSupplyAssets) + 1;
+        uint256 numer = uint256(totalSupplyShares) + 1e6;
+        if (numer <= denom) return;
+
+        uint256 maxSharesForZeroAssets = numer / denom - 1;
+        if (maxSharesForZeroAssets == 0) return;
+
+        (uint256 actorSupplyShares,,) = morpho.position(id, _getActor());
+        if (actorSupplyShares == 0) return;
+
+        uint256 sharesToBurn = maxSharesForZeroAssets;
+        if (sharesToBurn > actorSupplyShares) sharesToBurn = actorSupplyShares;
+        if (sharesToBurn == 0) return;
+
+        // withdraw by shares, expecting `assets == 0` (pure burn).
+        morpho_withdraw(0, sharesToBurn, _getActor(), _getActor());
+    }
+
     function morpho_supply_clamped(uint256 assets) public {
         morpho_supply(assets, 0, _getActor(), hex"");
     }
@@ -35,6 +66,27 @@ abstract contract MorphoTargets is
 
     function morpho_repay_clamped(uint256 assets) public {
         morpho_repay(assets, 0, _getActor(), hex"");
+    }
+
+    function morpho_borrow_shares_clamped(uint256 shares) public {
+        Id id = marketParams.id();
+        (, , , uint128 totalBorrowShares, , ) = morpho.market(id);
+        if (totalBorrowShares == 0) return; // need existing borrows to borrow by shares
+        shares = (shares % uint256(totalBorrowShares)) + 1;
+        morpho_supply_clamped(1e18); // ensure liquidity
+        morpho_supplyCollateral_clamped(1e18);
+        oracle.setPrice(1e36);
+        morpho_borrow(0, shares, _getActor(), _getActor());
+    }
+
+    function morpho_repay_shares_clamped(uint256 shares) public {
+        Id id = marketParams.id();
+        (, , , uint128 totalBorrowShares, , ) = morpho.market(id);
+        if (totalBorrowShares == 0) return;
+        (, uint128 actorBorrowShares, ) = morpho.position(id, _getActor());
+        if (actorBorrowShares == 0) return;
+        shares = (shares % uint256(actorBorrowShares)) + 1;
+        morpho_repay(0, shares, _getActor(), hex"");
     }
 
     function morpho_liquidate_assets(uint256 seizedAssets, bytes memory data) public {
@@ -91,7 +143,48 @@ abstract contract MorphoTargets is
         morpho_createMarket(mp);
     }
 
-    // switch markets
+    function morpho_flashLoan_clamped(uint256 assets) public {
+        assets = (assets % 1e18) + 1;
+        morpho_supply_clamped(assets + 1);
+        flashBorrower.flashLoan(marketParams.loanToken, assets, abi.encode(marketParams.loanToken));
+    }
+
+    function morpho_withdrawCollateral_clamped(uint256 assets) public {
+        assets = (assets % 1e18) + 1;
+        morpho_supplyCollateral_clamped(assets + 1);
+        morpho_withdrawCollateral(assets, _getActor(), _getActor());
+    }
+
+    function morpho_setFee_clamped(uint256 entropy) public {
+        Id id = marketParams.id();
+        (, , , , , uint128 currentFee) = morpho.market(id);
+        uint256 newFee = (entropy % 24) * 1e16 + 1e15; // 1% to 24% in 1% steps
+        if (newFee > MAX_FEE) newFee = MAX_FEE;
+        if (uint256(currentFee) == newFee) return;
+        vm.prank(morpho.owner());
+        morpho.setFee(marketParams, newFee);
+    }
+
+    function morpho_setFeeRecipient_clamped(uint256 entropy) public {
+        address newRecipient = _getActors()[entropy % _getActors().length];
+        if (newRecipient == morpho.feeRecipient()) return;
+        vm.prank(morpho.owner());
+        morpho.setFeeRecipient(newRecipient);
+    }
+
+    function morpho_setOwner_clamped(uint256 entropy) public {
+        address newOwner = _getActors()[entropy % _getActors().length];
+        if (newOwner == morpho.owner()) return;
+        vm.prank(morpho.owner());
+        morpho.setOwner(newOwner);
+    }
+
+    function morpho_setAuthorization_clamped(uint256 entropy, bool flag) public asActor {
+        address[] memory actors = _getActors();
+        address authorized = actors[entropy % actors.length];
+        morpho.setAuthorization(authorized, flag);
+    }
+
     function morpho_switchMarket(uint256 entropy) public {
         if (trackedMarketIds.length == 0) return;
 
@@ -105,6 +198,16 @@ abstract contract MorphoTargets is
             irm: irm,
             lltv: lltv
         });
+    }
+
+    function scenario_liquidate_when_healthy() public {
+        morpho_supply_clamped(1e18);
+        morpho_supplyCollateral_clamped(1e18);
+        oracle.setPrice(1e36);
+        vm.prank(_getActor());
+        try morpho.liquidate(marketParams, _getActor(), 1e6, 0, "") {
+            revert("liquidate should revert when healthy");
+        } catch {}
     }
 
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///

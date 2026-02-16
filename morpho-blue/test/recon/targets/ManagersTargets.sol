@@ -18,15 +18,19 @@ abstract contract ManagersTargets is
 {
     // == ACTOR HANDLERS == //
     
-    /// @dev Start acting as another actor
+    /// @dev Start acting as another actor (entropy-safe: uses entropy % actors.length)
     function switchActor(uint256 entropy) public {
-        _switchActor(entropy);
+        address[] memory actors = _getActors();
+        if (actors.length == 0) return;
+        _switchActor(entropy % actors.length);
     }
 
 
-    /// @dev Starts using a new asset
+    /// @dev Starts using a new asset (entropy-safe: uses entropy % assets.length)
     function switch_asset(uint256 entropy) public {
-        _switchAsset(entropy);
+        address[] memory assets = _getAssets();
+        if (assets.length == 0) return;
+        _switchAsset(entropy % assets.length);
     }
 
     /// @dev Deploy a new token and add it to the list of assets, then set it as the current asset

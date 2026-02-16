@@ -50,6 +50,7 @@ abstract contract Properties is BeforeAfter, Asserts {
   }
 
   // property: if the market has zero supple shares, it must have zero supply assets
+  // supply(1), withdraw(999 999 shares), withdraw(1 share) will break this property
   function property_zeroSupplyShares_implies_zeroSupplyAssets() public {
     for (uint256 i; i < trackedMarketIds.length; i++) {
       Id id = trackedMarketIds[i];

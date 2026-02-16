@@ -18,6 +18,8 @@ import "src/Morpho.sol";
 import {Id, MarketParams, Market} from "src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "src/libraries/MarketParamsLib.sol";
 import {OracleMock} from "src/mocks/OracleMock.sol";
+import {FlashBorrowerMock} from "src/mocks/FlashBorrowerMock.sol";
+import {IMorpho} from "src/interfaces/IMorpho.sol";
 
 // we need a new mock irm contract, because the morpho's mock irm doesnt have a setter
 contract MockIRM {
@@ -42,12 +44,13 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
 
     Morpho morpho;
     MockIRM irm;
-    // we can use morpho's mock oracle
     OracleMock oracle;
+    FlashBorrowerMock flashBorrower;
     MarketParams marketParams;
 
 
-    // bounded list to track markets for dynamic market creation
+    // MarketManager: bounded list to track markets for dynamic market creation
+    // use morpho_switchMarket(entropy) as the canonical handler to set active market before actions
     Id[] internal trackedMarketIds;
     uint256 internal constant MAX_TRACKED_MARKETS = 5;
     mapping(bytes32 => bool) internal isTracked;
@@ -62,6 +65,12 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
     /// === Setup === ///
     /// This contains all calls to be performed in the tester constructor, both for Echidna and Foundry
     function setup() internal virtual override {
+        // 4 extra actors for lender/borrower/liquidator separation (0xAlice, 0xBob, etc.)
+        _addActor(address(uint160(0xA0Ed)));
+        _addActor(address(uint160(0xB0B)));
+        _addActor(address(uint160(0xCFFD)));
+        _addActor(address(uint160(0xBCA0E)));
+
         // core protocol
         morpho = new Morpho(_getActor());
 
@@ -73,9 +82,9 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
 
         oracle.setPrice(1e36);
 
-        // two assets from AssetManager - collateral and loan tokens
+        // two assets from AssetManager - collateral and loan tokens using 6 decimals
         _newAsset(18);
-        _newAsset(18);
+        _newAsset(6);
 
         // configure the market || loan to value is 80%
         morpho.enableIrm(address(irm));
@@ -95,6 +104,9 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils {
         morpho.createMarket(marketParams);
 
         _trackMarket(marketParams);
+
+        // flash loan callback executor (Morpho transfers tokens to it, it approves back)
+        flashBorrower = new FlashBorrowerMock(IMorpho(address(morpho)));
 
         // approve and mint using AssetManager
         address[] memory approvalArray = new address[](1);
